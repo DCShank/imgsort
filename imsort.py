@@ -23,6 +23,12 @@ def average_color(im):
     return tuple(colors)
 
 
+class ImageInfo(object):
+    def __init__(self, filename, fileformat):
+        self.filename = filename
+        self.format = fileformat
+
+
 if __name__ == '__main__':
     # Start by changing the current directory to the seleceted folder
     try:
@@ -47,15 +53,16 @@ if __name__ == '__main__':
         try:
             # We need to convert every image to RGB, but that erases the name
             # and file format. We store and reset them.
-            form = im.format
-            name = im.filename
-            im = im.convert("RGB")
-            im.filename = name
-            im.format = form
+
+            info = ImageInfo(im.filename, im.format)
+            im2 = im.convert("RGB")
+            im.close()
             # Get the average color. This is what we're using to sort
-            av_col = average_color(im)
-            image_list.append((av_col, im))
+            av_col = average_color(im2)
+            im2.close()
+            image_list.append((av_col, info))
         except:
+            im.close()
             continue
 
     image_list.sort(key=lambda tup: colorsys.rgb_to_hsv(*(tup[0])))
