@@ -42,7 +42,7 @@ def rename_images(image_list, start_val=1, int_str_func=str, step=1):
         current_num += step
 
 
-alph = string.digits + string.ascii_uppercase + string.ascii_lowercase
+alph = string.digits + string.ascii_lowercase
 alph_len = len(alph)
 reverse_alph = dict({(alph[i], i) for i in range(alph_len)})
 
