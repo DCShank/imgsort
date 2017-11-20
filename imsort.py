@@ -108,7 +108,6 @@ def rename_images(image_list, start_val=1, step=1):
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    print(args)
 
     # Change the current directory to the selected folder
     try:
@@ -130,6 +129,7 @@ if __name__ == '__main__':
                   'color': lambda image: rgb_to_hsv(*(image.avg_col))}
 
     # Can select output function based on input arguments
+    # Start num and 99 were selected arbitrarily. This is bad practice, sorry.
     out_funcs = {'list': lambda ims: print(*map(lambda im: im.filename, ims),
                                            sep='\n'),
                  'rename': lambda images: rename_images(images, start_num, 99)}
