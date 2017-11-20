@@ -89,7 +89,8 @@ def num_gen(start_val, step):
 
 def get_next_name(num_gen, image):
     while True:
-        new_name = int_to_name(next(num_gen)) + "." + image.format.lower()
+        new_name = (str(image.size[0]) + 'x' + str(image.size[1]) + '_' +
+                    int_to_name(next(num_gen)) + '.' + image.format.lower())
         if not os.path.isfile(new_name):
             return new_name
 
@@ -118,7 +119,7 @@ if __name__ == '__main__':
 
     # A starting value for names. I arbitrarily decided that I would like a
     # random starting value.
-    start_num = randint(alph_len**8, alph_len**9/2)
+    start_num = randint(alph_len**6, alph_len**7/2)
 
     # This whole function look up table could probably be moved to the
     # the parsing section.
