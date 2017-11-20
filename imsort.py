@@ -89,8 +89,11 @@ def num_gen(start_val, step):
 
 def get_next_name(num_gen, image):
     while True:
-        new_name = (str(image.size[0]) + 'x' + str(image.size[1]) + '_' +
-                    int_to_name(next(num_gen)) + '.' + image.format.lower())
+        new_name = (
+                    int_to_name(next(num_gen))
+                    + '_' + str(image.size[0]) + 'x' + str(image.size[1])
+                    + '.' + image.format.lower()
+                    )
         if not os.path.isfile(new_name):
             return new_name
 
@@ -119,7 +122,7 @@ if __name__ == '__main__':
 
     # A starting value for names. I arbitrarily decided that I would like a
     # random starting value.
-    start_num = randint(alph_len**6, alph_len**7/2)
+    start_num = randint(alph_len**3, alph_len**4/2)
 
     # This whole function look up table could probably be moved to the
     # the parsing section.
@@ -133,7 +136,7 @@ if __name__ == '__main__':
     # Start num and 99 were selected arbitrarily. This is bad practice, sorry.
     out_funcs = {'list': lambda ims: print(*map(lambda im: im.filename, ims),
                                            sep='\n'),
-                 'rename': lambda images: rename_images(images, start_num, 99)}
+                 'rename': lambda images: rename_images(images, start_num, 5)}
 
     # Get the list of files in the directory
     f_list = os.listdir()
