@@ -25,7 +25,7 @@ parser.add_argument('-secondary_sort', type=str, nargs='?', default=None,
                     help='The secondary sorting method used to break ties',
                     choices={'color', 'resolution', 'dimensions', None})
 
-parser.add_argument('-output', type=str, nargs='?', default='rename',
+parser.add_argument('-output', type=str, nargs='?', default='list',
                     help='The desired output of the program',
                     choices={'rename', 'list'})
 
