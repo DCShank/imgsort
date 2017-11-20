@@ -5,8 +5,34 @@ import numpy as np
 import os as os
 from sys import argv, exit
 from random import randint
-import colorsys
+from colorsys import rgb_to_hsv
 import string
+import argparse
+
+
+parser = argparse.ArgumentParser(description="Sort images")
+
+parser.add_argument('directory', type=str, nargs='?',
+                    default='.',
+                    help='The directory containing the images you want to sort'
+                    )
+
+parser.add_argument('-primary_sort', type=str, nargs='?', default='color',
+                    help='The primary sorting method.',
+                    choices={'color', 'resolution', 'dimensions'})
+
+parser.add_argument('-secondary_sort', type=str, nargs='?', default=None,
+                    help='The secondary sorting method used to break ties',
+                    choices={'color', 'resolution', 'dimensions', None})
+
+parser.add_argument('-output', type=str, nargs='?', default='rename',
+                    help='The desired output of the program',
+                    choices={'rename', 'list'})
+
+
+parser.add_argument('--reversed', dest='rev', action='store_const',
+                    const=reversed,
+                    default=(lambda x: x), help='Reverses the output')
 
 
 def average_color(im):
@@ -24,22 +50,6 @@ def average_color(im):
         # Append the averaged color value to the colors
         colors.append(int(color_sum//size))
     return tuple(colors)
-
-
-def rename_images(image_list, start_val=1, int_str_func=str, step=1):
-    if step<0:
-        step = -step
-    current_num = start_val
-    for image in image_list:
-        # Start by finding a name that hasn't been taken in the folder
-        new_name = int_str_func(current_num) + "." + image.format.lower()
-        # We don't ever want to overwrite a file so we find an unusued name
-        while os.path.isfile(new_name):
-            current_num += step
-            new_name = int_str_func(current_num) + "." + image.format.lower()
-        os.rename(image.filename, new_name)
-
-        current_num += step
 
 
 alph = string.digits + string.ascii_lowercase
@@ -70,31 +80,83 @@ def name_add(name, val):
     return int_to_name(name_to_int(name) + val)
 
 
+def num_gen(start_val, step):
+    current_val = start_val
+    while True:
+        yield current_val
+        current_val += step
+
+
+def get_next_name(num_gen, image):
+    while True:
+        new_name = int_to_name(next(num_gen)) + "." + image.format.lower()
+        if not os.path.isfile(new_name):
+            return new_name
+
+
+def rename_images(image_list, start_val=1, step=1):
+    # Make sure that step is a positive integer
+    if step == 0:
+        step += 1
+    step = abs(step)
+
+    gen = num_gen(start_val, step)
+
+    for image in image_list:
+        os.rename(image.filename, get_next_name(gen, image))
+
+
 if __name__ == '__main__':
+    args = parser.parse_args()
+    print(args)
+
     # Change the current directory to the selected folder
     try:
-        os.chdir(argv[1])
+        os.chdir(args.directory)
     except NotADirectoryError:
         print("Argument is not a folder!")
         exit()
 
+    # A starting value for names. I arbitrarily decided that I would like a
+    # random starting value.
+    start_num = randint(alph_len**8, alph_len**9/2)
+
+    # This whole function look up table could probably be moved to the
+    # the parsing section.
+    # Can select sort keys based on input arguments
+    sort_funcs = {None: lambda image: (),
+                  'dimensions': lambda image: image.size,
+                  'resolution': lambda image: image.size,
+                  'color': lambda image: rgb_to_hsv(*(image.avg_col))}
+
+    # Can select output function based on input arguments
+    out_funcs = {'list': lambda ims: print(*map(lambda im: im.filename, ims),
+                                           sep='\n'),
+                 'rename': lambda images: rename_images(images, start_num, 99)}
+
+    # Get the list of files in the directory
     f_list = os.listdir()
 
+    # Initialize an empty list of images.
     image_list = []
-
+    # Find all the images and do the needed calculations.
     for f in f_list:
         try:
             im = Image.open(f)
         except OSError:
             continue
         # We've opened an image, now we want to average its colors and move on
-        im.avg_col = average_color(im)  # Store the averages with their images
+        if 'color' == args.primary_sort or 'color' == args.secondary_sort:
+            im.avg_col = average_color(im)  # Store the average with the image
         im.close()  # Closes the images file descriptor and releases memory
         image_list.append(im)
 
-    image_list.sort(key=lambda image: colorsys.rgb_to_hsv(*(image.avg_col)))
+    # Sort the list based on the selected sorts.
+    image_list.sort(key=lambda image: (sort_funcs[args.primary_sort](image) +
+                                       sort_funcs[args.secondary_sort](image)))
 
-    # We pick a starting number. This isn't strictly necessary but I felt it
-    # would be nicer than a fixed starting point
-    start_num = randint(alph_len**8, alph_len**9/2)
-    rename_images(image_list, start_num, int_str_func=int_to_name, step=377)
+    # If the user wanted the output reversed we do that.
+    image_list = args.rev(image_list)
+
+    # Do the requested output effect.
+    out_funcs[args.output](image_list)
