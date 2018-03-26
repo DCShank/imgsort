@@ -186,7 +186,7 @@ if __name__ == '__main__':
             continue
         # We've opened an image, now we want to average its colors and move on
         # We only want to calculate the average color if we need to!
-        col_sorts = ('hue', 'saturation', 'value')
+        col_sorts = ('hue', 'saturation', 'value', 'brightness')
         if args.primary_sort in col_sorts or args.secondary_sort in col_sorts:
             im.avg_col = average_color(im)  # Store the average with the image
         im.close()  # Closes the images file descriptor and releases memory
