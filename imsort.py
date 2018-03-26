@@ -19,11 +19,13 @@ parser.add_argument('directory', type=str, nargs='?',
 
 parser.add_argument('-primary_sort', type=str, nargs='?', default='color',
                     help='The primary sorting method.',
-                    choices={'color', 'resolution', 'dimensions'})
+                    choices={'hue', 'saturation', 'value', 'resolution',
+                             'dimensions'})
 
 parser.add_argument('-secondary_sort', type=str, nargs='?', default=None,
                     help='The secondary sorting method used to break ties',
-                    choices={'color', 'resolution', 'dimensions', None})
+                    choices={'hue', 'saturation', 'value', 'resolution',
+                             'dimensions', None})
 
 parser.add_argument('-output', type=str, nargs='?', default='list',
                     help='The desired output of the program',
@@ -127,10 +129,13 @@ if __name__ == '__main__':
     # This whole function look up table could probably be moved to the
     # the parsing section.
     # Can select sort keys based on input arguments
-    sort_funcs = {None: lambda image: (),
+    sort_keys = {None:         lambda image: (),
                   'dimensions': lambda image: image.size,
                   'resolution': lambda image: image.size,
-                  'color': lambda image: rgb_to_hsv(*(image.avg_col))}
+                  'hue':      lambda image: rgb_to_hsv(*(image.avg_col))[0],
+                  'saturation': lambda image: rgb_to_hsv(*(image.avg_col))[1],
+                  'value':      lambda image: rgb_to_hsv(*(image.avg_col))[2]
+                  }
 
     # Can select output function based on input arguments
     # Start num and 99 were selected arbitrarily. This is bad practice, sorry.
@@ -150,14 +155,16 @@ if __name__ == '__main__':
         except OSError:
             continue
         # We've opened an image, now we want to average its colors and move on
-        if 'color' == args.primary_sort or 'color' == args.secondary_sort:
+        # We only want to calculate the average color if we need to!
+        col_sorts = ('hue', 'saturation', 'value')
+        if args.primary_sort in col_sorts or args.secondary_sort in col_sorts:
             im.avg_col = average_color(im)  # Store the average with the image
         im.close()  # Closes the images file descriptor and releases memory
         image_list.append(im)
 
     # Sort the list based on the selected sorts.
-    image_list.sort(key=lambda image: (sort_funcs[args.primary_sort](image) +
-                                       sort_funcs[args.secondary_sort](image)))
+    image_list.sort(key=lambda image: (sort_keys[args.primary_sort](image),
+                                       sort_keys[args.secondary_sort](image)))
 
     # If the user wanted the output reversed we do that.
     image_list = args.rev(image_list)
