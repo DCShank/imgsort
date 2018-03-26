@@ -6,6 +6,7 @@ import os as os
 from sys import argv, exit
 from random import randint
 from colorsys import rgb_to_hsv
+import re
 import string
 import argparse
 
@@ -13,11 +14,10 @@ import argparse
 parser = argparse.ArgumentParser(description="Sort images")
 
 parser.add_argument('directory', type=str, nargs='?',
-                    default='.',
                     help='The directory containing the images you want to sort'
                     )
 
-parser.add_argument('-primary_sort', type=str, nargs='?', default='color',
+parser.add_argument('-primary_sort', type=str, nargs='?', default='resolution',
                     help='The primary sorting method.',
                     choices={'hue', 'saturation', 'value', 'brightness',
                              'resolution', 'dimensions'})
@@ -31,8 +31,14 @@ parser.add_argument('-output', type=str, nargs='?', default='list',
                     help='The desired output of the program',
                     choices={'rename', 'list'})
 
+parser.add_argument('-exclude', type=str, nargs='?', default=None,
+                    help="Regular expression for files to exclude")
 
-parser.add_argument('--reversed', dest='rev', action='store_const',
+parser.add_argument('-include', type=str, nargs='?', default=None,
+                    help="Regular expression for files to include")
+
+
+parser.add_argument('-r', '--reversed', dest='rev', action='store_const',
                     const=reversed,
                     default=(lambda x: x), help='Reverses the output')
 
@@ -113,6 +119,10 @@ def rename_images(image_list, start_val=1, step=1):
 
 
 if __name__ == '__main__':
+    if len(argv) == 1:
+        parser.print_help()
+        exit()
+
     args = parser.parse_args()
 
     # Change the current directory to the selected folder
@@ -120,23 +130,21 @@ if __name__ == '__main__':
         os.chdir(args.directory)
     except NotADirectoryError:
         print("Argument is not a folder!")
-        exit()
+        exit(1)
 
     # A starting value for names. I arbitrarily decided that I would like a
     # random starting value.
     start_num = randint(alph_len**3, alph_len**4/2)
 
-    # This whole function look up table could probably be moved to the
-    # the parsing section.
-    # Can select sort keys based on input arguments
+    # Dictionary of functions that take an image and output a sorting key
     sort_keys = {None:         lambda image: (),
-                  'dimensions': lambda image: image.size,
-                  'resolution': lambda image: image.size,
-                  'hue':      lambda image: rgb_to_hsv(*(image.avg_col))[0],
-                  'saturation': lambda image: rgb_to_hsv(*(image.avg_col))[1],
-                  'value':      lambda image: rgb_to_hsv(*(image.avg_col))[2],
-                  'brightness': lambda image: rgb_to_hsv(*(image.avg_col))[2]
-                  }
+                 'dimensions': lambda image: image.size,
+                 'resolution': lambda image: image.size,
+                 'hue':        lambda image: rgb_to_hsv(*(image.avg_col))[0],
+                 'saturation': lambda image: rgb_to_hsv(*(image.avg_col))[1],
+                 'value':      lambda image: rgb_to_hsv(*(image.avg_col))[2],
+                 'brightness': lambda image: rgb_to_hsv(*(image.avg_col))[2]
+                 }
 
     # Can select output function based on input arguments
     # Start num and 99 were selected arbitrarily. This is bad practice, sorry.
@@ -146,6 +154,27 @@ if __name__ == '__main__':
 
     # Get the list of files in the directory
     f_list = os.listdir()
+
+    # Filter the list by includes and excludes
+    if args.include is not None:
+        try:
+            include_exp = re.compile(args.include)
+            temp = list(filter(include_exp.fullmatch, f_list))
+            f_list = temp
+        except:
+            print("Invalid include Regex!")
+            parser.print_usage()
+            exit(1)
+
+    if args.exclude is not None:
+        try:
+            exclude_exp = re.compile(args.exclude)
+            temp = list(filter(lambda s: not exclude_exp.fullmatch(s), f_list))
+            f_list = temp
+        except:
+            print("Invalid exclude Regex!")
+            parser.print_usage()
+            exit(1)
 
     # Initialize an empty list of images.
     image_list = []
@@ -172,3 +201,4 @@ if __name__ == '__main__':
 
     # Do the requested output effect.
     out_funcs[args.output](image_list)
+    exit(0)
