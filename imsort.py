@@ -19,13 +19,13 @@ parser.add_argument('directory', type=str, nargs='?',
 
 parser.add_argument('-primary_sort', type=str, nargs='?', default='color',
                     help='The primary sorting method.',
-                    choices={'hue', 'saturation', 'value', 'resolution',
-                             'dimensions'})
+                    choices={'hue', 'saturation', 'value', 'brightness',
+                             'resolution', 'dimensions'})
 
 parser.add_argument('-secondary_sort', type=str, nargs='?', default=None,
                     help='The secondary sorting method used to break ties',
-                    choices={'hue', 'saturation', 'value', 'resolution',
-                             'dimensions', None})
+                    choices={'hue', 'saturation', 'value', 'brightness',
+                             'resolution', 'dimensions', None})
 
 parser.add_argument('-output', type=str, nargs='?', default='list',
                     help='The desired output of the program',
@@ -134,7 +134,8 @@ if __name__ == '__main__':
                   'resolution': lambda image: image.size,
                   'hue':      lambda image: rgb_to_hsv(*(image.avg_col))[0],
                   'saturation': lambda image: rgb_to_hsv(*(image.avg_col))[1],
-                  'value':      lambda image: rgb_to_hsv(*(image.avg_col))[2]
+                  'value':      lambda image: rgb_to_hsv(*(image.avg_col))[2],
+                  'brightness': lambda image: rgb_to_hsv(*(image.avg_col))[2]
                   }
 
     # Can select output function based on input arguments
