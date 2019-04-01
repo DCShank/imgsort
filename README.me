@@ -5,6 +5,16 @@ imgsort
 Currently sorting by hue, saturation, brightness, and resolution are available.
 For a help menu, type "path/to/imgsort.py -h" into your console.
 
+Requires Pillow to run.
+```
+pip install pillow
+```
+
+You may optionally install tqdm for progress bars.
+```
+pip install tqdm
+```
+
 ##Example usage
 Sort the files by hue and print the list to console:
 ```
@@ -14,12 +24,13 @@ blue_image.png
 david@~$ 
 ```
 
-Sort the files by dimension and rename to be sorted lexicographically:
+Sort the files by dimensions and rename to be sorted lexicographically:
 ```
+david@~$ ./imgsort.py image_directory/ -p dimensions -r
 
 ```
 
-Options currently include sorting by hue, saturation, brightness, and resolution.
+Options currently include sorting by hue, saturation, brightness, and resolution/dimensions.
 
 Sorting can either be by renaming files or listing the files in order to your console.
 
