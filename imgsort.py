@@ -3,6 +3,7 @@
 try:
     from tqdm import tqdm
 except ImportError:
+    # If tqdm isn't installed, just make the function return the iterable
     def tqdm(x):
         return x
 from PIL import Image
@@ -11,7 +12,6 @@ import os as os
 from sys import argv, exit, stderr
 from random import randint
 from colorsys import rgb_to_hsv
-from collections import namedtuple
 import re
 import string
 import argparse
@@ -51,10 +51,14 @@ parser.add_argument('-undo', type=str, nargs=1, metavar='CHANGE_LIST_FILE',
                           'SORTING BEHAVIOR. DOES NOT USE INCLUDE/EXCLUDE'))
 
 parser.add_argument('-exclude', type=str, nargs='?', default=None,
-                    help='Regular expression for files to exclude')
+                    metavar="EXCLUDE_REGEX",
+                    help='Regular expression for files to exclude.\n'
+                    'Excludes files whose whole names match the regex')
 
 parser.add_argument('-include', type=str, nargs='?', default=None,
-                    help='Regular expression for files to include')
+                    metavar="INCLUDE_REGEX",
+                    help='Regular expression for files to include.\n'
+                    'Includes files whose whole names match the regex')
 
 
 parser.add_argument('-v', '--reversed', dest='rev', action='store_const',
@@ -83,14 +87,6 @@ def average_color(im):
 alph = string.digits + string.ascii_lowercase
 alph_len = len(alph)
 reverse_alph = dict({(alph[i], i) for i in range(alph_len)})
-
-
-def name_to_int(name):
-    val = 0
-    for letter in name:
-        val *= alph_len
-        val += reverse_alph[letter]
-    return val
 
 
 def int_to_name(n):
@@ -139,8 +135,6 @@ def rename_images(image_list, start_val=1, step=1):
             image.filename = next_name
         except OSError:
             print(f'Could not rename {image.filename}!', file=stderr)
-            # This is unecessary, but I think it makes it clear that we just
-            # keep going
             continue
 
 
@@ -153,6 +147,7 @@ def trychdir(directory):
         os.chdir(args.directory)
     except NotADirectoryError:
         print('Argument is not a directory!', file=stderr)
+        parser.print_usage()
         exit(1)
     except Exception:
         print('Could not change into the directory!', file=stderr)
@@ -179,13 +174,14 @@ def undo(change_file):
         old_name, new_name = change.split(' -> ')
         try:
             os.rename(new_name, old_name)
-        except Exception:
+        except OSError:
             print(f'Could not rename {old_name} to {new_name}!', file=stderr)
             continue
     exit(0)
 
 
 class ImageData(object):
+    """ A class to capture the relevant data about an image for sorting """
     def __init__(self, filename, avg_col, size, format):
         self.filename = filename
         self.avg_col = avg_col
@@ -197,11 +193,12 @@ class ImageData(object):
 if __name__ == '__main__':
     if len(argv) == 1:
         parser.print_help()
-        exit()
+        exit(0)
 
     # Parses the arguments, filling args with a bunch of variables
     args = parser.parse_args()
 
+    # Find the actual path to the file
     if args.undo:
         args.undo[0] = os.path.abspath(args.undo[0])
 
@@ -216,7 +213,7 @@ if __name__ == '__main__':
     # A starting value for names. I arbitrarily decided that I would like a
     # random starting value.
     # Note that because of shoddy work, this will have problems renaming lists
-    # of greater than 36^5 images.
+    # of greater than about (36^6)/10 images.
     start_num = randint(alph_len**5, alph_len**6/2)
 
     # Get the list of files in the directory
@@ -226,35 +223,36 @@ if __name__ == '__main__':
     if args.include is not None:
         try:
             include_exp = re.compile(args.include)
-            temp = list(filter(include_exp.fullmatch, f_list))
-            f_list = temp
         except Exception:
             print('Invalid include Regex!', file=stderr)
             parser.print_usage()
             exit(1)
+        temp = list(filter(include_exp.fullmatch, f_list))
+        f_list = temp
 
     if args.exclude is not None:
         try:
             exclude_exp = re.compile(args.exclude)
-            temp = list(filter(lambda s: not exclude_exp.fullmatch(s), f_list))
-            f_list = temp
         except Exception:
             print('Invalid exclude Regex!', file=stderr)
             parser.print_usage()
             exit(1)
+        temp = list(filter(lambda s: not exclude_exp.fullmatch(s), f_list))
+        f_list = temp
 
+    # Check if we need to sort by average color value
     col_sorts = ('hue', 'saturation', 'value', 'brightness')
     col = args.primary_sort in col_sorts or args.secondary_sort in col_sorts
+
+    # Initialize an empty list of image data
+    image_list = []
+    # Find all the images and do the needed calculations.
     if col:
         print('Finding average colors and gathering image data:',
               file=stderr)
     else:
         print('Gathering image data:', file=stderr)
-    # Initialize an empty list of images.
-    image_list = []
-    # Find all the images and do the needed calculations.
     for f in tqdm(f_list):
-        im = None
         try:
             im = Image.open(f)
         except IOError:
@@ -288,6 +286,7 @@ if __name__ == '__main__':
                                        sort_keys[args.secondary_sort](image)))
 
     # If the user wanted the output reversed we do that.
+    # args.rev is either the identity function or the 'reversed' function
     image_list = args.rev(image_list)
 
     if args.rename:
@@ -296,7 +295,8 @@ if __name__ == '__main__':
             try:
                 lfile = open(args.change, 'w')
             except OSError as err:
-                print('Could not write the rename log file! Aborting.', file=stderr)
+                print('Could not write the rename log file!\n'
+                      'Aborting.', file=stderr)
                 print(err, file=stderr)
                 exit(1)
         rename_images(image_list, start_num, 5)
@@ -305,6 +305,7 @@ if __name__ == '__main__':
                 out = (image.oldfname.replace(' ', '\\ ') + ' -> ' +
                        image.filename.replace(' ', '\\ ') + '\n')
                 lfile.write(out)
+            lfile.close()
 
     # List is also the default behavior, so we include that
     if args.list or not (args.list or args.rename):
