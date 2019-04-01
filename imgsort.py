@@ -7,58 +7,63 @@ except ImportError:
     def tqdm(x):
         return x
 from PIL import Image
-import numpy as np
-import os as os
+from colorsys import rgb_to_hsv
 from sys import argv, exit, stderr
 from random import randint
-from colorsys import rgb_to_hsv
+import numpy as np
+from pathlib import Path
+import os
 import re
 import string
 import argparse
 
 
-parser = argparse.ArgumentParser(description='Sort images')
+parser = argparse.ArgumentParser(description='Sorts images')
 
-parser.add_argument('directory', type=str, nargs='?',
+parser.add_argument('directory', type=str,
                     help='The directory containing the images you want to sort'
                     )
 
-parser.add_argument('-primary_sort', type=str, nargs='?', default='resolution',
-                    help='The primary sorting method.',
+parser.add_argument('-p', '--primary_sort', type=str,
+                    default='resolution',
+                    help='The primary sorting method. Defaults to resolution',
                     choices={'hue', 'saturation', 'value', 'brightness',
                              'resolution', 'dimensions'})
 
-parser.add_argument('-secondary_sort', type=str, nargs='?', default=None,
+parser.add_argument('-s', '--secondary_sort', type=str,
+                    default=None,
                     help='The secondary sorting method used to break ties',
                     choices={'hue', 'saturation', 'value', 'brightness',
                              'resolution', 'dimensions', None})
 
-parser.add_argument('-list', action='store_true',
+parser.add_argument('-l', '--list', action='store_true',
                     help='Print the output of the sort as a list')
 
-parser.add_argument('-rename', action='store_true',
+parser.add_argument('-r', '--rename', action='store_true',
                     help=('Rename the images to strings that are sorted the '
                           'same way lexicographically and by the sorting '
                           'methods selected'))
 
 parser.add_argument('-c', '--change-log', dest='change', type=str, nargs='?',
-                    default=None, const='change_history.txt',
-                    help='Save a text file with the list of renamed images.')
+                    default=None, const='change-log.txt',
+                    help='Save a text file with the list of renamed images. '
+                         'No effect without rename')
 
-parser.add_argument('-undo', type=str, nargs=1, metavar='CHANGE_LIST_FILE',
+parser.add_argument('-u', '--undo', type=str,
+                    metavar='CHANGE_LIST_FILE',
                     help=('Undoes the changes from CHANGE_LIST.TXT in the '
-                          'selected directory if possible.\nOVERRIDES NORMAL '
+                          'selected directory if possible. OVERRIDES NORMAL '
                           'SORTING BEHAVIOR. DOES NOT USE INCLUDE/EXCLUDE'))
 
-parser.add_argument('-exclude', type=str, nargs='?', default=None,
+parser.add_argument('-e', '--exclude', type=str, default=None,
                     metavar="EXCLUDE_REGEX",
-                    help='Regular expression for files to exclude.\n'
-                    'Excludes files whose whole names match the regex')
+                    help='Regular expression for files to exclude. '
+                         'Excludes files whose whole names match the regex')
 
-parser.add_argument('-include', type=str, nargs='?', default=None,
+parser.add_argument('-i', '--include', type=str, default=None,
                     metavar="INCLUDE_REGEX",
-                    help='Regular expression for files to include.\n'
-                    'Includes files whose whole names match the regex')
+                    help='Regular expression for files to include.'
+                         'Includes files whose whole names match the regex')
 
 
 parser.add_argument('-v', '--reversed', dest='rev', action='store_const',
@@ -138,46 +143,26 @@ def rename_images(image_list, start_val=1, step=1):
             continue
 
 
-def trychdir(directory):
-    """
-    Tries to change into the indicated directory, exiting with exit failure
-    if it fails.
-    """
-    try:
-        os.chdir(args.directory)
-    except NotADirectoryError:
-        print('Argument is not a directory!', file=stderr)
-        parser.print_usage()
-        exit(1)
-    except Exception:
-        print('Could not change into the directory!', file=stderr)
-        raise
-
-
 def undo(change_file):
-    try:
-        f = open(change_file, 'r')
-    except Exception:
-        print('Could not open the change file', file=stderr)
-        exit(1)
-
     valid_change_exp = re.compile(r'(\S|\\\w)+ -> (\S|\\\w)+')
-    line_num = 0
+    with open(change_file, 'r') as f:
+        line_num = 0
 
-    for line in f:
-        change = line.strip()
-        line_num += 1
-        if not valid_change_exp.fullmatch(change):
-            print(f"Line {line_num} wasn't a valid file change!", file=stderr)
-            print(change, file=stderr)
-            continue
-        old_name, new_name = change.split(' -> ')
-        try:
-            os.rename(new_name, old_name)
-        except OSError:
-            print(f'Could not rename {old_name} to {new_name}!', file=stderr)
-            continue
-    exit(0)
+        for line in f:
+            change = line.strip()
+            line_num += 1
+            if not valid_change_exp.fullmatch(change):
+                print(f"Line {line_num} wasn't a valid file change!",
+                      file=stderr)
+                print(change, file=stderr)
+                continue
+            old_name, new_name = change.split(' -> ')
+            try:
+                os.rename(new_name, old_name)
+            except OSError:
+                print(f'Could not rename {old_name} to {new_name}!',
+                      file=stderr)
+                continue
 
 
 class ImageData(object):
@@ -200,14 +185,37 @@ if __name__ == '__main__':
 
     # Find the actual path to the file
     if args.undo:
-        args.undo[0] = os.path.abspath(args.undo[0])
+        try:
+            args.undo = Path(args.undo).resolve(strict=True)
+        except FileNotFoundError:
+            print("Undo file could not be found!")
+            exit(1)
+        except RuntimeError:
+            print("Entered an infinite loop along resolution path!")
+            exit(1)
 
     # Change the current directory to the selected folder
-    trychdir(args.directory)
+    directory = Path(args.directory)
+    if not directory.exists():
+        print("Directory argument does not exist!", file=stderr)
+        exit(1)
+    if not directory.is_dir():
+        print("Directory argument is not a directory!", file=stderr)
+        exit(1)
+    try:
+        os.chdir(args.directory)
+    except NotADirectoryError:
+        # We handle this again because there's technically a race condition
+        print("Directory argument is not a directory!", file=stderr)
+        parser.print_usage()
+        exit(1)
+    except OSError:
+        print('Could not change into the directory!', file=stderr)
+        exit(1)
 
     # If we want to undo, we immediately do that then exit.
     if args.undo:
-        undo(args.undo[0])
+        undo(args.undo)
         exit(0)
 
     # A starting value for names. I arbitrarily decided that I would like a
@@ -254,22 +262,20 @@ if __name__ == '__main__':
         print('Gathering image data:', file=stderr)
     for f in tqdm(f_list):
         try:
-            im = Image.open(f)
+            with Image.open(f) as im:
+                # We've opened an image, now we want to average its colors
+                avg_col = None
+                # We only want to calculate the average color if we need to!
+                if col:
+                    avg_col = average_color(im)
+                data = ImageData(avg_col=avg_col,
+                                 size=[dim for dim in im.size],
+                                 filename=im.filename,
+                                 format=im.format)
+                image_list.append(data)
         except IOError:
+            # Handles the case where the file is not an image
             continue
-        # We've opened an image, now we want to average its colors and move on
-        # We only want to calculate the average color if we need to!
-        col_sorts = ('hue', 'saturation', 'value', 'brightness')
-        avg_col = None
-        if col:
-            avg_col = average_color(im)
-        im.close()
-        data = ImageData(avg_col=avg_col,
-                         size=[dim for dim in im.size],
-                         filename=im.filename,
-                         format=im.format)
-        im = None
-        image_list.append(data)
 
     # Dictionary of functions that take an image and output a sorting key
     sort_keys = {None:         lambda image: (),
@@ -307,7 +313,7 @@ if __name__ == '__main__':
                 lfile.write(out)
             lfile.close()
 
-    # List is also the default behavior, so we include that
+    # List is also the default behavior, so we do that if nothing is selected
     if args.list or not (args.list or args.rename):
         if args.rename:
             # If the files were renamed, we want to indicate both the old file
