@@ -15,7 +15,8 @@ You may optionally install tqdm for progress bars.
 pip install tqdm
 ```
 
-##Example usage
+###Example usage
+
 Sort the files by hue and print the list to console:
 ```
 david@~$ ./imgsort.py image_directory/ -p hue -l
